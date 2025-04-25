@@ -8,7 +8,6 @@ A modern web application that provides intelligent document search and analysis 
 - 📄 Document preview functionality
 - 💫 Modern, responsive UI with Tailwind CSS
 - 🔐 Secure document access with SAS tokens
-- 📱 Mobile-friendly interface
 - 🎯 Content-boosted search results
 - 📊 File metadata display (size, last modified date)
 
