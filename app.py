@@ -6,6 +6,11 @@ import requests
 import datetime
 from functools import wraps
 from datetime import timedelta
+import re
+import io
+from docx import Document
+from docx.shared import RGBColor
+from docx.enum.text import WD_COLOR_INDEX
 
 # Load environment variables
 load_dotenv()
@@ -21,23 +26,26 @@ ACCOUNT_KEY = os.getenv("ACCOUNT_KEY")
 
 # Initialize Flask app
 app = Flask(__name__)
-# Use a secure secret key from environment variable or generate a random one
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
+app.permanent_session_lifetime = timedelta(minutes=30)
 
-app.permanent_session_lifetime = timedelta(minutes=1)
-
-# Fetch credentials from environment variables
-VALID_CREDENTIALS = {
-    os.getenv("ADMIN_USERNAME", "admin"): os.getenv("ADMIN_PASSWORD", "K9#mP2$vL5@nX8")
-}
-
-# Build Azure Search endpoint
-endpoint = f"https://{SEARCH_SERVICE_NAME}.search.windows.net/indexes/{SEARCH_INDEX_NAME}/docs/search?api-version={API_VERSION}"
-
-# Blob client
+# Initialize Azure Blob client
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 container_client = blob_service_client.get_container_client(CONTAINER_NAME)
 
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+
+# Valid credentials
+VALID_CREDENTIALS = {
+    os.getenv("ADMIN_USERNAME", "admin"): os.getenv("ADMIN_PASSWORD", "admin123")
+}
+
+# Azure Search endpoint
+endpoint = f"https://{SEARCH_SERVICE_NAME}.search.windows.net/indexes/{SEARCH_INDEX_NAME}/docs/search?api-version={API_VERSION}"
+
+# Helper for login required
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -46,6 +54,103 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Highlight keywords inside text
+def highlight_keywords(text, keywords):
+    """Wrap keywords with <mark> tags using different colors."""
+    if not text:
+        return ""
+    
+    # Define colors for highlighting
+    colors = [
+        'background-color: #FFFF00;',  # Yellow
+        'background-color: #40E0D0;',  # Turquoise
+        'background-color: #FFC0CB;',  # Pink
+        'background-color: #90EE90;',  # Green
+        'background-color: #98FB98;',  # Bright Green
+        'background-color: #ADD8E6;',  # Blue
+        'background-color: #FFB6C1;',  # Red
+        'background-color: #EE82EE;'   # Violet
+    ]
+    
+    # Create a mapping of keywords to colors
+    keyword_colors = {}
+    for i, keyword in enumerate(keywords.split()):
+        keyword_colors[keyword.lower()] = colors[i % len(colors)]
+    
+    # Process each keyword
+    for keyword, color in keyword_colors.items():
+        pattern = re.compile(re.escape(keyword), re.IGNORECASE)
+        text = pattern.sub(lambda m: f'<mark style="{color}">{m.group(0)}</mark>', text)
+    
+    return text
+
+def highlight_keywords_in_docx(blob_client, keywords):
+    """Process DOCX file and highlight keywords with different colors."""
+    try:
+        # Download the blob content
+        blob_data = blob_client.download_blob()
+        docx_bytes = blob_data.readall()
+        
+        # Create a Document object from bytes
+        doc = Document(io.BytesIO(docx_bytes))
+        
+        # Define colors for highlighting
+        highlight_colors = [
+            WD_COLOR_INDEX.YELLOW,      # Yellow
+            WD_COLOR_INDEX.TURQUOISE,   # Turquoise
+            WD_COLOR_INDEX.PINK,        # Pink
+            WD_COLOR_INDEX.GREEN,       # Green
+            WD_COLOR_INDEX.BRIGHT_GREEN,# Bright Green
+            WD_COLOR_INDEX.BLUE,        # Blue
+            WD_COLOR_INDEX.RED,         # Red
+            WD_COLOR_INDEX.VIOLET       # Violet
+        ]
+        
+        # Create a mapping of keywords to colors
+        keyword_colors = {}
+        for i, keyword in enumerate(keywords.split()):
+            keyword_colors[keyword.lower()] = highlight_colors[i % len(highlight_colors)]
+        
+        # Process each paragraph
+        for paragraph in doc.paragraphs:
+            for run in paragraph.runs:
+                text = run.text
+                modified_text = text
+                
+                # Process each keyword
+                for keyword, color in keyword_colors.items():
+                    pattern = re.compile(re.escape(keyword), re.IGNORECASE)
+                    if pattern.search(modified_text):
+                        # Split text by this keyword
+                        parts = pattern.split(modified_text)
+                        if len(parts) > 1:
+                            # Clear the original run
+                            run.text = parts[0]
+                            
+                            # Add highlighted runs for this keyword
+                            for i, part in enumerate(parts[1:]):
+                                # Add the keyword with its specific color
+                                keyword_run = paragraph.add_run(pattern.findall(modified_text)[i])
+                                keyword_run.font.highlight_color = color
+                                
+                                # Add the next part
+                                if i < len(parts) - 2:
+                                    paragraph.add_run(part)
+                            
+                            # Update modified_text for next keyword
+                            modified_text = pattern.sub('', modified_text)
+        
+        # Save the modified document
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        
+        return output.getvalue()
+    except Exception as e:
+        app.logger.error(f"Error processing DOCX file: {str(e)}")
+        return None
+
+# Login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -60,16 +165,19 @@ def login():
     
     return render_template('login.html')
 
+# Logout
 @app.route('/logout')
 def logout():
     session.pop('username', None)
     return redirect(url_for('login'))
 
+# Home page
 @app.route('/')
 @login_required
 def index():
     return render_template('index4.html')
 
+# Search API
 @app.route('/search', methods=['POST'])
 @login_required
 def search():
@@ -108,6 +216,7 @@ def search():
                         result['view_url'] = None
                         continue
                     
+                    # File type detection
                     ext = blob_name.lower().split('.')[-1] if '.' in blob_name else ''
                     result['file_type'] = {
                         'pdf': 'pdf',
@@ -119,17 +228,52 @@ def search():
                         'csv': 'text'
                     }.get(ext, 'other')
                     
-                    sas_token = generate_blob_sas(
-                        account_name=blob_service_client.account_name,
-                        container_name=CONTAINER_NAME,
-                        blob_name=blob_name,
-                        account_key=ACCOUNT_KEY,
-                        permission=BlobSasPermissions(read=True),
-                        expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=1),
-                        content_disposition='inline'
-                    )
-                    result['view_url'] = f"{blob_client.url}?{sas_token}"
+                    # For DOCX files, process and highlight keywords
+                    if ext in ['doc', 'docx']:
+                        highlighted_docx = highlight_keywords_in_docx(blob_client, user_query)
+                        if highlighted_docx:
+                            # Upload the highlighted version to a temporary blob
+                            temp_blob_name = f"highlighted_{blob_name}"
+                            temp_blob_client = container_client.get_blob_client(temp_blob_name)
+                            temp_blob_client.upload_blob(highlighted_docx, overwrite=True)
+                            
+                            # Generate SAS token for the highlighted version
+                            sas_token = generate_blob_sas(
+                                account_name=blob_service_client.account_name,
+                                container_name=CONTAINER_NAME,
+                                blob_name=temp_blob_name,
+                                account_key=ACCOUNT_KEY,
+                                permission=BlobSasPermissions(read=True),
+                                expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+                                content_disposition='inline'
+                            )
+                            result['view_url'] = f"{temp_blob_client.url}?{sas_token}"
+                        else:
+                            # Fallback to original if highlighting fails
+                            sas_token = generate_blob_sas(
+                                account_name=blob_service_client.account_name,
+                                container_name=CONTAINER_NAME,
+                                blob_name=blob_name,
+                                account_key=ACCOUNT_KEY,
+                                permission=BlobSasPermissions(read=True),
+                                expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+                                content_disposition='inline'
+                            )
+                            result['view_url'] = f"{blob_client.url}?{sas_token}"
+                    else:
+                        # For other file types, use original blob
+                        sas_token = generate_blob_sas(
+                            account_name=blob_service_client.account_name,
+                            container_name=CONTAINER_NAME,
+                            blob_name=blob_name,
+                            account_key=ACCOUNT_KEY,
+                            permission=BlobSasPermissions(read=True),
+                            expiry=datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+                            content_disposition='inline'
+                        )
+                        result['view_url'] = f"{blob_client.url}?{sas_token}"
                     
+                    # Metadata
                     props = blob_client.get_blob_properties()
                     result['file_size'] = props.size
                     result['last_modified'] = props.last_modified.isoformat()
@@ -137,11 +281,18 @@ def search():
                 except Exception as e:
                     app.logger.error(f"Error generating SAS URL for blob {blob_name}: {str(e)}")
                     result['view_url'] = None
-        
+
+            # Highlight content
+            if 'content' in result:
+                result['highlighted_content'] = highlight_keywords(result['content'], user_query)
+            else:
+                result['highlighted_content'] = ''
+
         return jsonify({'results': results})
+    
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Search API error: {str(e)}")
         return jsonify({'error': 'Search service error. Please try again later.'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+  app.run(debug=True, port=5001, use_reloader=False)
