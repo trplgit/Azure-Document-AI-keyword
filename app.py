@@ -9,7 +9,6 @@ from datetime import timedelta
 import re
 import io
 from docx import Document
-from docx.shared import RGBColor
 from docx.enum.text import WD_COLOR_INDEX
 
 # Load environment variables
@@ -24,12 +23,10 @@ AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 CONTAINER_NAME = os.getenv("CONTAINER_NAME")
 ACCOUNT_KEY = os.getenv("ACCOUNT_KEY")
 
-# Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# Initialize Azure Blob client
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
 container_client = blob_service_client.get_container_client(CONTAINER_NAME)
 
@@ -37,15 +34,17 @@ container_client = blob_service_client.get_container_client(CONTAINER_NAME)
 def make_session_permanent():
     session.permanent = True
 
-# Valid credentials
+# User login credentials
+# Load user credentials from environment
 VALID_CREDENTIALS = {
-    os.getenv("ADMIN_USERNAME", "admin"): os.getenv("ADMIN_PASSWORD", "admin123")
+    os.getenv("ADMIN_USERNAME"): os.getenv("ADMIN_PASSWORD"),
+    os.getenv("USER1_USERNAME"): os.getenv("USER1_PASSWORD"),
+    os.getenv("USER2_USERNAME"): os.getenv("USER2_PASSWORD")
 }
 
-# Azure Search endpoint
+
 endpoint = f"https://{SEARCH_SERVICE_NAME}.search.windows.net/indexes/{SEARCH_INDEX_NAME}/docs/search?api-version={API_VERSION}"
 
-# Helper for login required
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -54,7 +53,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Highlight keywords inside text
 def highlight_keywords(text, keywords):
     """Wrap keywords with <mark> tags using different colors."""
     if not text:
@@ -150,39 +148,31 @@ def highlight_keywords_in_docx(blob_client, keywords):
         app.logger.error(f"Error processing DOCX file: {str(e)}")
         return None
 
-# Login page
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        
         if username in VALID_CREDENTIALS and VALID_CREDENTIALS[username] == password:
             session['username'] = username
             return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error='Invalid username or password')
-    
+        return render_template('login.html', error='Invalid username or password')
     return render_template('login.html')
 
-# Logout
 @app.route('/logout')
 def logout():
     session.pop('username', None)
     return redirect(url_for('login'))
 
-# Home page
 @app.route('/')
 @login_required
 def index():
     return render_template('index4.html')
 
-# Search API
 @app.route('/search', methods=['POST'])
 @login_required
 def search():
     user_query = request.form.get('query')
-    
     if not user_query:
         return jsonify({'error': 'No query provided'}), 400
 
@@ -198,7 +188,8 @@ def search():
         "scoringProfile": "contentBoost",
         "top": 10,
         "queryType": "full",
-        "searchMode": "all"
+        "searchMode": "all",
+        "filter": f"authorized_users eq '{session['username']}'"
     }
 
     try:
