@@ -7,8 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 5001  # or any other port your app uses
-
+EXPOSE 5001 
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "app.py"]
