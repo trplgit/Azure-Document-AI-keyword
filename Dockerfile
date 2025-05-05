@@ -7,7 +7,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 5001 
+EXPOSE 5001
+
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "app.py"]
+# Use Gunicorn as a production WSGI server
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "app:app"]
+
