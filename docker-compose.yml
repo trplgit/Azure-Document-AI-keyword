@@ -1,11 +1,9 @@
 version: "3.8"
 
 services:
-  flask-app:
+  keyword-app:
     build: .
-    container_name: flask-keyword-app
+    container_name: keyword-app
     ports:
-      - "5001:80"
-    environment:
-      - PYTHONUNBUFFERED=1
+      - "5001:80"  # Adjust this if your app uses a different port
     restart: unless-stopped
