@@ -5,7 +5,7 @@ services:
     build: .
     container_name: keyword-app
     ports:
-      - "5001:5001"  # Host:Container port mapping
+      - "5001:5001"  # Host:Container port
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
