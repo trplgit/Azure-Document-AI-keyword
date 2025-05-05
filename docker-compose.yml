@@ -18,4 +18,4 @@ networks:
   mssqlnetwork:
     driver: bridge
     external: true
-~
+
