@@ -13,6 +13,7 @@ from docx.shared import RGBColor
 from docx.enum.text import WD_COLOR_INDEX
 import fitz  # PyMuPDF for PDF processing
 import tempfile
+import json
 
 # Load environment variables
 load_dotenv()
@@ -265,7 +266,6 @@ def search():
         "search": user_query,
         "searchFields": "content,metadata_storage_name",
         "select": "content,metadata_storage_name,metadata_storage_path",
-        "scoringProfile": "contentBoost",
         "top": 10,
         "queryType": "full",
         "searchMode": "all",
@@ -273,7 +273,14 @@ def search():
     }
 
     try:
+        print("@@@@@@@@@@@ endpoint @@@@@@@@@@@@@@...", endpoint)
+        print("@@@@@@@@@@@ headers @@@@@@@@@@@@@@...", headers)
+        print("@@@@@@@@@@@ payload @@@@@@@@@@@@@@...", payload)
+
         response = requests.post(endpoint, headers=headers, json=payload)
+        print("@@@@@@@@@@@ payload @@@@@@@@@@@@@@...", response)
+        print(response.text)
+        print(json.dumps(payload, indent=2))
         response.raise_for_status()
         results = response.json().get("value", [])
         
