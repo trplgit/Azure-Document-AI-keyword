@@ -2,13 +2,17 @@ version: '3.8'
 
 services:
   flask-app:
-    build: .
-    container_name: flask-azure-formrecognizer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flask-app
     ports:
-      - "5000:5000"  # Exposes port 5000 on the host machine to the container's port 5000
-    volumes:
-      - .:/app  # Mounts the current directory to /app in the container
+      - "5001:5001"
     environment:
-      - FLASK_APP=index  # Flask app file
-      - FLASK_RUN_HOST=0.0.0.0  # Make sure Flask runs on all interfaces
-    restart: unless-stopped  # Container will restart unless stopped manually
+      - FLASK_ENV=development
+      - FLASK_RUN_PORT=5001
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_APP=app.py
+    volumes:
+      - .:/app
+    restart: always
