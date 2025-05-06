@@ -264,8 +264,7 @@ def search():
     payload = {
         "search": user_query,
         "searchFields": "content,metadata_storage_name",
-        "select": "content,metadata_storage_name,metadata_storage_path",
-        "scoringProfile": "contentBoost",
+        "select": "content,metadata_storage_name,metadata_storage_path",        
         "top": 10,
         "queryType": "full",
         "searchMode": "all",
