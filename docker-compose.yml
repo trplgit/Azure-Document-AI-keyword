@@ -1,11 +1,14 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  keyword-app:
+  flask-app:
     build: .
-    container_name: keyword-app
+    container_name: flask-azure-formrecognizer
     ports:
-      - "5001:5001"  
+      - "5000:5000"  # Exposes port 5000 on the host machine to the container's port 5000
+    volumes:
+      - .:/app  # Mounts the current directory to /app in the container
     environment:
-      - PYTHONUNBUFFERED=1
-    restart: unless-stopped
+      - FLASK_APP=index  # Flask app file
+      - FLASK_RUN_HOST=0.0.0.0  # Make sure Flask runs on all interfaces
+    restart: unless-stopped  # Container will restart unless stopped manually
