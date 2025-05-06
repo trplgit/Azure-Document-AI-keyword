@@ -197,8 +197,11 @@
                 <div id="previewError" class="preview-error">
                     <i class="fas fa-exclamation-circle text-4xl mb-4 text-red-500"></i>
                     <p class="text-gray-700">Unable to preview this file format.</p>
+                    <a id="downloadLink" href="#" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        Download File
+                    </a>
                 </div>
-                <iframe id="previewFrame" class="preview-frame" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+                <iframe id="previewFrame" class="preview-frame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" allowfullscreen="true"></iframe>
             </div>
         </div>
     </div>
@@ -319,25 +322,56 @@
             const previewFrame = document.getElementById('previewFrame');
             const previewLoading = document.getElementById('previewLoading');
             const previewError = document.getElementById('previewError');
+            const downloadLink = document.getElementById('downloadLink');
             
-            previewTitle.textContent = title;
+            previewTitle.textContent = title || 'Document Preview';
             previewFrame.style.display = 'none';
             previewError.style.display = 'none';
             previewLoading.style.display = 'flex';
             
             panel.classList.add('active');
             overlay.classList.add('active');
+            
+            // Set up download link
+            downloadLink.href = url;
+            downloadLink.download = title || 'document';
 
             if (keywordPositions && pageImages) {
                 // For Word documents with PDF-based highlighting
                 const previewUrl = `/preview_pdf?keyword_positions=${encodeURIComponent(JSON.stringify(keywordPositions))}&page_images=${encodeURIComponent(JSON.stringify(pageImages))}`;
                 previewFrame.src = previewUrl;
+            } else if (fileType === 'pdf') {
+                // Use PDF.js viewer for PDF files
+                const pdfViewerUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(url)}`;
+                previewFrame.src = pdfViewerUrl;
             } else if (['word', 'excel', 'powerpoint'].includes(fileType)) {
-                // For other Office files
+                // For Office files, use Office Online Viewer if available
                 const encodedUrl = encodeURIComponent(url);
                 previewFrame.src = `https://view.officeapps.live.com/op/embed.aspx?src=${encodedUrl}`;
+            } else if (fileType === 'text') {
+                // For text files, load content and display in a pre tag
+                fetch(url)
+                    .then(response => response.text())
+                    .then(text => {
+                        previewFrame.srcdoc = `
+                            <html>
+                            <head>
+                                <style>
+                                    body { font-family: monospace; padding: 20px; white-space: pre-wrap; }
+                                </style>
+                            </head>
+                            <body>${text}</body>
+                            </html>
+                        `;
+                        previewLoading.style.display = 'none';
+                        previewFrame.style.display = 'block';
+                    })
+                    .catch(error => {
+                        previewLoading.style.display = 'none';
+                        previewError.style.display = 'flex';
+                    });
             } else {
-                // For other file types
+                // For other file types, try to display or offer download
                 previewFrame.src = url;
             }
 
