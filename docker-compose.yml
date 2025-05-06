@@ -1,11 +1,18 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  keyword-app:
-    build: .
-    container_name: keyword-app
+  flask-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flask-app
     ports:
-      - "5001:5001"  
+      - "5001:5001"
     environment:
-      - PYTHONUNBUFFERED=1
-    restart: unless-stopped
+      - FLASK_ENV=development
+      - FLASK_RUN_PORT=5001
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_APP=app.py
+    volumes:
+      - .:/app
+    restart: always
