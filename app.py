@@ -54,6 +54,13 @@ VALID_CREDENTIALS = {
 # Azure Search endpoint
 endpoint = f"https://{SEARCH_SERVICE_NAME}.search.windows.net/indexes/{SEARCH_INDEX_NAME}/docs/search?api-version={API_VERSION}"
 
+
+def escape_query(query: str) -> str:
+    # Escape special characters for Lucene
+    lucene_special_chars = r'([\+\-\!\(\)\{\}\[\]\^"~\*\?:\\/])'
+    query = re.sub(lucene_special_chars, r'\\\1', query)
+    return f'"{query}"'  # Wrap in quotes to treat entire thing as a literal string
+
 # Helper for login required
 def login_required(f):
     @wraps(f)
@@ -262,8 +269,9 @@ def search():
         "api-key": API_KEY
     }
 
+    escaped_query = escape_query(user_query)
     payload = {
-        "search": user_query,
+        "search": escaped_query,
         "searchFields": "content,metadata_storage_name",
         "select": "content,metadata_storage_name,metadata_storage_path",
         "top": 10,
