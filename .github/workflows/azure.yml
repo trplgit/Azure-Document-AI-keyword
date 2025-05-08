@@ -25,12 +25,12 @@ jobs:
           password: ${{ secrets.ACR_PASSWORD }}
 
       - name: Build Docker image
-        run: docker build --no-cache -f Dockerfile -t ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/Azure-Document-AI-keyword:v1 .
+        run: docker build --no-cache -f Dockerfile -t ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/azure-document-ai-keyword:v1 .
         working-directory: ./  # Add this if Dockerfile is in the root directory
 
       - name: Push Docker image
         run: |
-          docker push ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/trpl-ai-large-lang-model:v1
+          docker push ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/azure-document-ai-keyword:v1
 
   deploy:
     name: Deploy to Linux VM (Demo)
@@ -71,14 +71,14 @@ jobs:
             echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker login ${{ vars.ACR_NAME }}.azurecr.io -u ${{ vars.ACR_USERNAME }} -p ${{ secrets.ACR_PASSWORD }}
             
             # Pull the image
-            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker pull ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/Azure-Document-AI-keyword:v1
+            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker pull ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/azure-document-ai-keyword:v1
             
             # Stop and remove any running container with the same name
             echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker stop flask-app || true
             echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker rm flask-app || true
             
             # Run the new container with resource limits (1 CPU, 2GB memory)
-            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker run -e ASPNETCORE_ENVIRONMENT=Demo -d --restart always -p 5001:5001 --name flask-app --memory="2G" --cpus="1.0" ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/Azure-Document-AI-keyword:v1
+            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker run -e ASPNETCORE_ENVIRONMENT=Demo -d --restart always -p 5001:5001 --name flask-app --memory="2G" --cpus="1.0" ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/azure-document-ai-keyword:v1
 
       - name: Cleanup VPN Credentials
         run: |
