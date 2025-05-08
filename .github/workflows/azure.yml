@@ -74,11 +74,11 @@ jobs:
             echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker pull ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/Azure-Document-AI-keyword:v1
             
             # Stop and remove any running container with the same name
-            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker stop VM05-Prod-Trpl-secai-demo || true
-            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker rm VM05-Prod-Trpl-secai-demo || true
+            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker stop flask-app || true
+            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker rm flask-app || true
             
             # Run the new container with resource limits (1 CPU, 2GB memory)
-            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker run -e ASPNETCORE_ENVIRONMENT=Demo -d --restart always --network=mssqlnetwork -p 8881:80 --name VM05-Prod-Trpl-secai-demo --memory="2G" --cpus="1.0" ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/Azure-Document-AI-keyword:v1
+            echo "${{ secrets.LINUX_VM_PASSWORD_DEMO }}" | sudo -S docker run -e ASPNETCORE_ENVIRONMENT=Demo -d --restart always -p 5001:5001 --name flask-app --memory="2G" --cpus="1.0" ${{ vars.ACR_NAME }}.azurecr.io/${{ inputs.environment }}/Azure-Document-AI-keyword:v1
 
       - name: Cleanup VPN Credentials
         run: |
